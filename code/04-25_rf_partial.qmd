@@ -243,11 +243,13 @@ A given model type can be fit with different engines (e.g., through different pa
 ```{r rf_spec}
 rf_spec <- 
   # Specifying rf as our model type, asking to tune the hyperparameters
-
+rand_forest(trees = tune(),
+            mtry = tune()) %>% 
     # Specify the engine
-
+set_engine("ranger") %>% 
     # Specifying mode  
-
+set_mode("regression")
+  
 rf_spec
 ```
 
@@ -297,7 +299,7 @@ rf_grid_result <- tune_sim_anneal(object = rf_spec,
                      preprocessor = weather_recipe,
                      resamples = resampling_foldcv,
                     #param_info = rf_param,
-                    iter = 50
+                    iter = 10
                      )
 
 
@@ -309,7 +311,7 @@ The first iteration uses a sensible value for the hyper-parameters, and then sta
 
 Let's collect a summary of metrics (across all folds, for each iteration), and plot them.  
 
-Firs, RMSE (lower is better):
+First, RMSE (lower is better):
 ```{r RMSE}
 rf_grid_result %>%
   collect_metrics() %>%
@@ -349,7 +351,10 @@ rf_grid_result %>%
 
 ```{r}
 # Based on lowest RMSE
-best_rmse <- rf_grid_result 
+best_rmse <- rf_grid_result %>% 
+  select_by_pct_loss("trees",
+                     metric = "rmse",
+                     limit = 2)
 
 best_rmse
 
@@ -357,7 +362,10 @@ best_rmse
 
 ```{r}
 # Based on greatest R2
-best_r2 <- rf_grid_result 
+best_r2 <- rf_grid_result %>% 
+  select_by_pct_loss("trees",
+                     metric = "rsq",
+                     limit = 2)
 
 
 best_r2
@@ -377,7 +385,9 @@ Let's use the hyperparameter values that optimized R2 to fit our final model.
 final_spec <- rand_forest(trees = best_r2$trees,
                           mtry = best_r2$mtry) %>%
   # Specify the engine
-
+set_engine("ranger",
+           importance = "permutation"
+           ) %>% 
     # Specifying mode  
   set_mode("regression")
   
@@ -389,7 +399,7 @@ final_spec
 Now that we determined our best model, let's do our **last fit**.
 
 This means 2 things:  
-  - Traninig the optimum hyperparameter values on the **entire training set**  
+  - Traning the optimum hyperparameter values on the **entire training set**  
   - Using it to **predict** on the **test set**  
 
 These 2 steps can be completed in one function, as below:  
